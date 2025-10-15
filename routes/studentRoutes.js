@@ -140,4 +140,43 @@ router.delete("/deleteAll", async (req, res) => {
   }
 });
 
+
+// PUT (Update) a student by ID
+router.put("/:id", async (req, res) => {
+  try {
+    const updatedStudent = await Student.findByIdAndUpdate(
+      req.params.id, // The ID of the student to update
+      req.body,      // The new data for the student
+      { new: true }  // Option to return the updated document
+    );
+
+    if (!updatedStudent) {
+      // If no student was found with that ID, send a 404 error
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    res.json(updatedStudent); // Send back the updated student data
+  } catch (error) {
+    console.error("Error updating student:", error);
+    res.status(500).json({ message: "Server error while updating" });
+  }
+});
+
+// DELETE a student by ID
+router.delete("/:id", async (req, res) => {
+  try {
+    const deletedStudent = await Student.findByIdAndDelete(req.params.id);
+
+    if (!deletedStudent) {
+      // If no student was found with that ID, send a 404 error
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    res.json({ message: "Student deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting student:", error);
+    res.status(500).json({ message: "Server error while deleting" });
+  }
+});
+
 export default router;

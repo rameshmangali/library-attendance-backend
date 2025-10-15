@@ -139,16 +139,58 @@ router.put("/force-out", async (req, res) => {
  */
 router.get("/date/:date", async (req, res) => {
   try {
-    const { date } = req.params;
-    const records = await Attendance.find({ date });
+    // 1. Get the date string from the request parameters (e.g., "2025-10-14")
+    const date = new Date(req.params.date);
 
-    if (records.length === 0) {
-      return res.status(404).json({ message: `No records found for ${date}` });
+    // 2. Create the start and end of that day in UTC for a reliable query
+    const startOfDay = new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0);
+    const endOfDay = new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999);
+
+    // 3. Use a range query to find all records within that day
+    const attendanceRecords = await Attendance.find({
+      inTime: {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      },
+    }).sort({ inTime: -1 }); // Sort by most recent first
+
+    if (!attendanceRecords || attendanceRecords.length === 0) {
+      // It's crucial to send back an empty array if nothing is found
+      return res.json([]); 
     }
 
-    res.status(200).json({ date, count: records.length, records });
+    res.json(attendanceRecords);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Error fetching attendance by date:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
+// --- NEW ROUTE FOR MANUAL CLOCK-OUT ---
+// This provides a dedicated endpoint for the librarian's action.
+router.put("/:id/clock-out", async (req, res) => {
+  try {
+    const record = await Attendance.findById(req.params.id);
+
+    if (!record) {
+      return res.status(404).json({ message: "Attendance record not found" });
+    }
+    if (record.outTime) {
+      return res.status(400).json({ message: "Student has already clocked out" });
+    }
+
+    // Set outTime to now and calculate duration, same as a card scan
+    record.outTime = getISTTime();
+    const durationMs = record.outTime - record.inTime;
+    const durationMins = Math.floor(durationMs / 60000);
+    record.duration = `${durationMins} mins`;
+
+    await record.save();
+    res.json(record);
+  } catch (error) {
+    console.error("Error in manual clock-out:", error);
+    res.status(500).json({ message: "Server error during clock-out" });
   }
 });
 
